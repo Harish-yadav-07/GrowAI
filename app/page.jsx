@@ -64,7 +64,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="w-full py-12 md:py-24 bg-background">
+      <section className="w-full py-12 md:py-24 bg-background" id="features">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-3xl font-bold mb-4">How It Works</h2>
@@ -100,7 +100,7 @@ export default function Home() {
                 <CardContent className="pt-6">
                   <div className="flex flex-col space-y-4">
                     <div className="flex items-center space-x-4 mb-4">
-                      <div className="relative h-12 w-12 flex-shrink-0">
+                      <div className="relative h-12 w-12 shrink-0">
                         <Image
                           width={40}
                           height={40}
@@ -168,7 +168,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold tracking-tighter text-primary-foreground sm:text-4xl md:text-5xl">
               Ready to Accelerate Your Career?
             </h2>
-            <p className="mx-auto max-w-[600px] text-primary-foreground/80 md:text-xl">
+            <p className="mx-auto max-w-150 text-primary-foreground/80 md:text-xl">
               Join thousands of professionals who are advancing their careers
               with AI-powered guidance.
             </p>

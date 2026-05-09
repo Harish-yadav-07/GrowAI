@@ -50,9 +50,28 @@ const HeroSection = () => {
             <Button size='lg' className="px-8">
               Get Started</Button>
           </Link>
-          <Link href={'/learn-more'}>
-            <Button size='lg' className="px-8" variant='secondary'>
-              Learn more</Button>
+          <Link href={'#features'}>
+            <Button
+              variant="secondary"
+              size='lg'
+              className="px-8"
+              onClick={() => {
+                const features = document.getElementById("features");
+
+                if (window.scrollY > 300) {
+                  window.scrollTo({
+                    top: 0,
+                    behavior: "smooth",
+                  });
+                } else {
+                  features?.scrollIntoView({
+                    behavior: "smooth",
+                  });
+                }
+              }}
+            >
+              Learn More
+            </Button>
           </Link>
         </div>
         <div className='hero-image-wrapper mt-5 md:mt-0'>
