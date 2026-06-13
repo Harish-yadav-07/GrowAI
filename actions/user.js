@@ -7,91 +7,101 @@ import { prisma } from "@/lib/prisma";
 
 export async function updateUser(data) {
   const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
-    
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
 
-  if (!user) throw new Error("User not found");
-
-  try {
-    // Start a transaction to handle both operations
-    const result = await prisma.$transaction(
-      async (tx) => {
-        // First check if industry exists
-        let industryInsight = await tx.industryInsight.findUnique({
-          where: {
-            industry: data.industry,
-          },
-        });
-
-        // If industry doesn't exist, create it with default values
-        if (!industryInsight) {
-          const insights = await generateAIInsights(data.industry);
-
-          industryInsight = await prisma.industryInsight.create({
-            data: {
-              industry: data.industry,
-              ...insights,
-              nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            },
-          });
-        }
-
-        // Now update the user
-        const updatedUser = await tx.user.update({
-          where: {
-            id: user.id,
-          },
-          data: {
-            industry: data.industry,
-            experience: data.experience,
-            bio: data.bio,
-            skills: data.skills,
-          },
-        });
-
-        return { updatedUser, industryInsight };
-      },
-      {
-        timeout: 10000, // default: 5000
-       }
-    );
-
-    revalidatePath("/");
-    return result.user;
-  } catch (error) {
-    console.error("Error updating user and industry:", error.message);
-    throw new Error("Failed to update profile" + error.message);
+  if (!userId) {
+    throw new Error("Unauthorized");
   }
-}
-
-export async function getUserOnboardingStatus() { 
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
 
   const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
+    where: {
+      clerkUserId: userId,
+    },
   });
 
-  if (!user) throw new Error("User not found");
+  if (!user) {
+    throw new Error("User not found");
+  }
 
   try {
-    const user = await prisma.user.findUnique({
+    // Check if industry insight already exists
+    let industryInsight = await prisma.industryInsight.findUnique({
       where: {
-        clerkUserId: userId,
-      },
-      select: {
-        industry: true,
+        industry: data.industry,
       },
     });
 
-    return {
-      isOnboarded: !!user?.industry,
-    };
+    // Generate AI insights OUTSIDE the transaction
+    let insights = null;
+
+    if (!industryInsight) {
+      insights = await generateAIInsights(data.industry);
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Create industry insight only if it doesn't exist
+      if (!industryInsight) {
+        industryInsight = await tx.industryInsight.create({
+          data: {
+            industry: data.industry,
+            ...insights,
+            nextUpdate: new Date(
+              Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+            ),
+          },
+        });
+      }
+
+      // Update user
+      const updatedUser = await tx.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          industry: data.industry,
+          experience: data.experience,
+          bio: data.bio,
+          skills: data.skills,
+        },
+      });
+
+      return {
+        updatedUser,
+        industryInsight,
+      };
+    });
+
+    revalidatePath("/");
+
+    return result.updatedUser;
   } catch (error) {
-    console.error("Error checking onboarding status:", error);
-    throw new Error("Failed to check onboarding status");
+    console.error("Error updating user and industry:", error);
+    throw new Error(
+      `Failed to update profile: ${error.message || "Unknown error"}`
+    );
   }
-}   
+}
+
+export async function getUserOnboardingStatus() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      clerkUserId: userId,
+    },
+    select: {
+      industry: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return {
+    isOnboarded: !!user.industry,
+  };
+}

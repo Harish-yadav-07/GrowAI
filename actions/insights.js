@@ -5,64 +5,100 @@ import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.5-flash",
+});
 
-export const generateAIInsights = async (industry) => {
+export async function generateAIInsights({
+  industry,
+  skills,
+  experience,
+}) {
+  const skillsList = Array.isArray(skills)
+    ? skills.join(", ")
+    : skills || "None";
+
   const prompt = `
-          Analyze the current state of the ${industry} industry and provide insights in ONLY the following JSON format without any additional notes or explanations:
-          {
-            "salaryRanges": [
-              { "role": "string", "min": number, "max": number, "median": number, "location": "string" }
-            ],
-            "growthRate": number,
-            "demandLevel": "High" | "Medium" | "Low",
-            "topSkills": ["skill1", "skill2"],
-            "marketOutlook": "Positive" | "Neutral" | "Negative",
-            "keyTrends": ["trend1", "trend2"],
-            "recommendedSkills": ["skill1", "skill2"]
-          }
-          
-          IMPORTANT: Return ONLY the JSON. No additional text, notes, or markdown formatting.
-          Include at least 5 common roles for salary ranges.
-          Growth rate should be a percentage.
-          Include at least 5 skills and trends.
-        `;
+You are an expert career advisor.
+
+Generate personalized career insights for:
+
+Industry: ${industry}
+Experience: ${experience} years
+Current Skills: ${skillsList}
+
+Return ONLY valid JSON in this format:
+
+{
+  "salaryRanges": [
+    {
+      "role": "string",
+      "min": 0,
+      "max": 0,
+      "median": 0,
+      "location": "India"
+    }
+  ],
+  "growthRate": 0,
+  "demandLevel": "High",
+  "topSkills": [],
+  "marketOutlook": "Positive",
+  "keyTrends": [],
+  "recommendedSkills": []
+}
+
+Rules:
+- Return ONLY JSON.
+- Include at least 5 salary roles.
+- Include at least 5 topSkills.
+- Include at least 5 keyTrends.
+- Include at least 5 recommendedSkills.
+- recommendedSkills MUST depend on the user's current skills.
+- Do NOT recommend skills the user already has.
+`;
 
   const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-  const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
+  const text = result.response
+    .text()
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
 
-  return JSON.parse(cleanedText);
-};
+  return JSON.parse(text);
+}
 
 export async function getIndustryInsights() {
   const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
 
   const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-    include: {
-      industryInsight: true,
+    where: {
+      clerkUserId: userId,
+    },
+    select: {
+      industry: true,
+      skills: true,
+      experience: true,
     },
   });
 
-  if (!user) throw new Error("User not found");
-
-  // If no insights exist, generate them
-  if (!user.industryInsight) {
-    const insights = await generateAIInsights(user.industry);
-
-    const industryInsight = await prisma.industryInsight.create({
-      data: {
-        industry: user.industry,
-        ...insights,
-        nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    return industryInsight;
+  if (!user) {
+    throw new Error("User not found");
   }
 
-  return user.industryInsight;
+  // Generate fresh personalized insights
+  const insights = await generateAIInsights({
+    industry: user.industry,
+    skills: user.skills,
+    experience: user.experience,
+  });
+
+  return {
+  ...insights,
+  lastUpdated: new Date(),
+  nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days later
+};
 }
