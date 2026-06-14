@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { checkUser } from "@/lib/checkUser";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -11,15 +12,11 @@ export async function generateCoverLetter(data) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   const prompt = `
-    Write a professional cover letter for a ${data.jobTitle} position at ${data.companyName
-    }.
+    Write a professional cover letter for a ${data.jobTitle} position at ${data.companyName}.
     
     About the candidate:
     - Industry: ${user.industry}
@@ -68,41 +65,26 @@ export async function getCoverLetters() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   return await prisma.coverLetter.findMany({
-    where: {
-      userId: user.id,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
   });
 }
 
 export async function getCoverLetter(id) {
   if (!id) throw new Error("Cover Letter ID is required");
 
-  const { userId: clerkUserId } = await auth(); // auth() use karna zyada fast hai yahan
-  if (!clerkUserId) throw new Error("Unauthorized");
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  // Pehle DB se user nikalo uski clerkUserId se
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId },
-  });
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
-  if (!user) throw new Error("User not found");
-
-  // Ab user.id (DB wali ID) use karo query mein
   return await prisma.coverLetter.findUnique({
-    where: {
-      id: id,
-      userId: user.id, // Ab ye match karega!
-    },
+    where: { id, userId: user.id },
   });
 }
 
@@ -110,16 +92,10 @@ export async function deleteCoverLetter(id) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   return await prisma.coverLetter.delete({
-    where: {
-      id,
-      userId: user.id,
-    },
+    where: { id, userId: user.id },
   });
 }

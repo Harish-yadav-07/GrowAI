@@ -3,20 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { checkUser } from "@/lib/checkUser";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
-});
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-export async function generateAIInsights({
-  industry,
-  skills,
-  experience,
-}) {
-  const skillsList = Array.isArray(skills)
-    ? skills.join(", ")
-    : skills || "None";
+export async function generateAIInsights({ industry, skills, experience }) {
+  const skillsList = Array.isArray(skills) ? skills.join(", ") : skills || "None";
 
   const prompt = `
 You are an expert career advisor.
@@ -69,36 +62,64 @@ Rules:
 
 export async function getIndustryInsights() {
   const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
-    select: {
-      industry: true,
-      skills: true,
-      experience: true,
-    },
+  // ✅ Bug Fix: Pehle DB mein check karo — 7 din purana nahi hai toh wahi return karo
+  // Isse Gemini API baar baar call nahi hoga aur quota save rahega
+  const existingInsight = await prisma.industryInsight.findUnique({
+    where: { industry: user.industry },
   });
 
-  if (!user) {
-    throw new Error("User not found");
+  if (existingInsight && new Date() < new Date(existingInsight.nextUpdate)) {
+    // Cache valid hai — DB se serve karo, Gemini call mat karo
+    return {
+      salaryRanges: existingInsight.salaryRanges,
+      growthRate: existingInsight.growthRate,
+      demandLevel: existingInsight.demandLevel,
+      topSkills: existingInsight.topSkills,
+      marketOutlook: existingInsight.marketOutlook,
+      keyTrends: existingInsight.keyTrends,
+      recommendedSkills: existingInsight.recommendedSkills,
+      lastUpdated: existingInsight.lastUpdated,
+      nextUpdate: existingInsight.nextUpdate,
+    };
   }
 
-  // Generate fresh personalized insights
+  // Cache expired ya nahi hai — Gemini se fresh data lo
   const insights = await generateAIInsights({
     industry: user.industry,
     skills: user.skills,
     experience: user.experience,
   });
 
+  // DB mein save/update karo
+  const updated = await prisma.industryInsight.upsert({
+    where: { industry: user.industry },
+    update: {
+      ...insights,
+      lastUpdated: new Date(),
+      nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+    create: {
+      industry: user.industry,
+      ...insights,
+      lastUpdated: new Date(),
+      nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+
   return {
-  ...insights,
-  lastUpdated: new Date(),
-  nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days later
-};
+    salaryRanges: updated.salaryRanges,
+    growthRate: updated.growthRate,
+    demandLevel: updated.demandLevel,
+    topSkills: updated.topSkills,
+    marketOutlook: updated.marketOutlook,
+    keyTrends: updated.keyTrends,
+    recommendedSkills: updated.recommendedSkills,
+    lastUpdated: updated.lastUpdated,
+    nextUpdate: updated.nextUpdate,
+  };
 }

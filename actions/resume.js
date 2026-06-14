@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { revalidatePath } from "next/cache";
+import { checkUser } from "@/lib/checkUser";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -12,24 +13,14 @@ export async function saveResume(content) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   try {
     const resume = await prisma.resume.upsert({
-      where: {
-        userId: user.id,
-      },
-      update: {
-        content,
-      },
-      create: {
-        userId: user.id,
-        content,
-      },
+      where: { userId: user.id },
+      update: { content },
+      create: { userId: user.id, content },
     });
 
     revalidatePath("/resume");
@@ -44,16 +35,11 @@ export async function getResume() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   return await prisma.resume.findUnique({
-    where: {
-      userId: user.id,
-    },
+    where: { userId: user.id },
   });
 }
 
@@ -61,14 +47,8 @@ export async function improveWithAI({ current, type }) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkUserId: userId },
-    include: {
-      industryInsight: true,
-    },
-  });
-
-  if (!user) throw new Error("User not found");
+  const user = await checkUser(); // ✅
+  if (!user) throw new Error("Unauthorized");
 
   const prompt = `
     As an expert resume writer, improve the following ${type} description for a ${user.industry} professional.

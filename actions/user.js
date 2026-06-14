@@ -4,58 +4,42 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { generateAIInsights } from "./insights";
 import { prisma } from "@/lib/prisma";
+import { checkUser } from "@/lib/checkUser";
 
 export async function updateUser(data) {
   const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const user = await prisma.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  const user = await checkUser(); // ✅ findUnique → checkUser
+  if (!user) throw new Error("Unauthorized");
 
   try {
-    // Check if industry insight already exists
     let industryInsight = await prisma.industryInsight.findUnique({
-      where: {
-        industry: data.industry,
-      },
+      where: { industry: data.industry },
     });
 
-    // Generate AI insights OUTSIDE the transaction
     let insights = null;
-
     if (!industryInsight) {
-      insights = await generateAIInsights(data.industry);
+      insights = await generateAIInsights({
+        industry: data.industry,
+        skills: data.skills,
+        experience: data.experience,
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Create industry insight only if it doesn't exist
       if (!industryInsight) {
         industryInsight = await tx.industryInsight.create({
           data: {
             industry: data.industry,
             ...insights,
-            nextUpdate: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
-            ),
+            nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           },
         });
       }
 
-      // Update user
       const updatedUser = await tx.user.update({
-        where: {
-          id: user.id,
-        },
+        where: { id: user.id },
         data: {
           industry: data.industry,
           experience: data.experience,
@@ -64,44 +48,30 @@ export async function updateUser(data) {
         },
       });
 
-      return {
-        updatedUser,
-        industryInsight,
-      };
+      return { updatedUser, industryInsight };
     });
 
     revalidatePath("/");
-
     return result.updatedUser;
   } catch (error) {
     console.error("Error updating user and industry:", error);
-    throw new Error(
-      `Failed to update profile: ${error.message || "Unknown error"}`
-    );
+    throw new Error(`Failed to update profile: ${error.message || "Unknown error"}`);
   }
 }
 
 export async function getUserOnboardingStatus() {
   const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
 
-  if (!userId) {
-    throw new Error("Unauthorized");
+  try {
+    const user = await checkUser(); // ✅ checkUser use karo — DB mein nahi hai toh create karega
+    if (!user) throw new Error("Unauthorized");
+
+    return {
+      isOnboarded: !!user.industry,
+    };
+  } catch (error) {
+    console.error("Error checking onboarding status:", error);
+    throw new Error("Failed to check onboarding status");
   }
-
-  const user = await prisma.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
-    select: {
-      industry: true,
-    },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  return {
-    isOnboarded: !!user.industry,
-  };
 }
