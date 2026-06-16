@@ -10,52 +10,25 @@ export async function updateUser(data) {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
 
-  const user = await checkUser(); // ✅ findUnique → checkUser
+  const user = await checkUser();
   if (!user) throw new Error("Unauthorized");
 
   try {
-    let industryInsight = await prisma.industryInsight.findUnique({
-      where: { industry: data.industry },
-    });
-
-    let insights = null;
-    if (!industryInsight) {
-      insights = await generateAIInsights({
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
         industry: data.industry,
-        skills: data.skills,
         experience: data.experience,
-      });
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      if (!industryInsight) {
-        industryInsight = await tx.industryInsight.create({
-          data: {
-            industry: data.industry,
-            ...insights,
-            nextUpdate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        });
-      }
-
-      const updatedUser = await tx.user.update({
-        where: { id: user.id },
-        data: {
-          industry: data.industry,
-          experience: data.experience,
-          bio: data.bio,
-          skills: data.skills,
-        },
-      });
-
-      return { updatedUser, industryInsight };
+        bio: data.bio,
+        skills: data.skills,
+      },
     });
 
     revalidatePath("/");
-    return result.updatedUser;
+    return updatedUser;
   } catch (error) {
-    console.error("Error updating user and industry:", error);
-    throw new Error(`Failed to update profile: ${error.message || "Unknown error"}`);
+    console.error("Error updating user:", error);
+    throw new Error(`Failed to update profile: ${error.message}`);
   }
 }
 
