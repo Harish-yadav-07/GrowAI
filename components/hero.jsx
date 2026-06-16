@@ -40,7 +40,7 @@ const HeroSection = () => {
             <br />
             Professional Success
           </h1>
-          <p className='mx-auto max-w-[650px] text-muted-foreground md:text-xl'>
+          <p className='mx-auto max-w-162.5 text-muted-foreground md:text-xl'>
             Advance your career with personalized guidance, focused interview preparation, and AI-powered tools built for real success.
           </p>
         </div>
