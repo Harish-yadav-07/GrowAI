@@ -200,3 +200,7 @@
 html {
   scrollbar-width: thin;  /* none ki jagah thin */
 }
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
