@@ -158,11 +158,11 @@
 
 @layer utilities {
   .gradient {
-    @apply bg-gradient-to-b from-gray-400 via-gray-200 to-gray-600;
+    @apply bg-linear-to-b from-gray-400 via-gray-200 to-gray-600;
   }
 
   .gradient-title {
-    @apply bg-gradient-to-b from-gray-400 via-gray-200 to-gray-600 
+    @apply bg-linear-to-b from-gray-400 via-gray-200 to-gray-600 
            font-extrabold tracking-tighter text-transparent bg-clip-text pb-2 pr-2;
   }
 }
@@ -183,21 +183,20 @@
 
 
 /* Chrome, Edge, Safari */
+/* ✅ Scrollbar thin rakho par functionality break mat karo */
 ::-webkit-scrollbar {
-  display: none;
+  width: 4px;
 }
 
-/* Firefox */
-html {
-  scrollbar-width: none;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* IE & Edge */
-body {
-  -ms-overflow-style: none;
+::-webkit-scrollbar-thumb {
+  background: oklch(0.4 0 0);
+  border-radius: 999px;
 }
-
 
 html {
-  scroll-behavior: smooth;
+  scrollbar-width: thin;  /* none ki jagah thin */
 }

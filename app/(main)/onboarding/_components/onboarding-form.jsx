@@ -68,11 +68,12 @@ const OnboardingForm = ({ industries }) => {
   useEffect(() => {
     if (updateResult?.success && !updateLoading) {
       toast.success("Profile completed successfully!");
-      router.push("/dashboard");
+      router.push("/insights");
       router.refresh();
     }
-  }, [updateResult, updateLoading]);
+  }, [updateResult, updateLoading, router]);
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchIndustry = watch("industry");
 
   return (

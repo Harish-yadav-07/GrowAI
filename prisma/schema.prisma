@@ -32,6 +32,7 @@ model User {
   assessments   Assessment[]
   resume        Resume?
   coverLetter   CoverLetter[]
+  userInsights  UserInsight[]
 }
 
 model Assessment {
@@ -99,4 +100,25 @@ model IndustryInsight {
   nextUpdate    DateTime  // Scheduled update time
 
   @@index([industry])
+}
+
+model UserInsight {
+  id            String   @id @default(cuid())
+  cacheKey      String   @unique  // clerkUserId-industry
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  industry      String
+
+  salaryRanges      Json[]
+  growthRate        Float
+  demandLevel       String
+  topSkills         String[]
+  marketOutlook     String
+  keyTrends         String[]
+  recommendedSkills String[]
+
+  lastUpdated   DateTime @default(now())
+  nextUpdate    DateTime
+
+  @@index([userId])
 }
