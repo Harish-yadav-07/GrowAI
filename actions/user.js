@@ -14,6 +14,24 @@ export async function updateUser(data) {
   if (!user) throw new Error("Unauthorized");
 
   try {
+    // ✅ Pehle IndustryInsight mein entry banao — empty values ke saath
+    await prisma.industryInsight.upsert({
+      where: { industry: data.industry },
+      update: {}, // already hai toh kuch mat karo
+      create: {
+        industry: data.industry,
+        growthRate: 0,
+        demandLevel: "Medium",
+        marketOutlook: "Positive",
+        topSkills: [],
+        keyTrends: [],
+        recommendedSkills: [],
+        salaryRanges: [],
+        nextUpdate: new Date(),
+      },
+    });
+
+    // ✅ Ab User update karo — foreign key satisfy ho jayega
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
